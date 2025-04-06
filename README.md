@@ -1,14 +1,14 @@
-# xui 简化版
+# xui
 
-一个轻量级的 xray 代理管理面板，专注于核心功能。
+轻量级、安全的 xray 代理面板，支持多用户多协议管理
 
-## 主要特点
+## 特性
 
-- 🚀 简洁高效：去除了不必要的功能，专注于核心代理管理
-- 🔒 安全可靠：支持多用户多协议管理
-- 📊 实时监控：系统状态和流量统计
-- 🛠️ 易于使用：网页可视化操作界面
-- 🔄 多协议支持：vmess、vless、trojan、shadowsocks 等
+- 🚀 轻量高效 - 专注核心功能，资源占用低
+- 🔒 安全可靠 - 内置多种安全策略和访问控制
+- 📊 流量监控 - 实时统计流量和系统状态
+- 🛠️ 简易管理 - 直观的Web界面，便捷的命令行工具
+- 🔄 多协议支持 - vmess、vless、trojan、shadowsocks 等
 
 ## 快速开始
 
@@ -20,71 +20,86 @@ bash <(curl -Ls https://raw.githubusercontent.com/MissChina/xui/master/install.s
 
 ### 系统要求
 
-- 操作系统：CentOS 7+ / Ubuntu 16+ / Debian 8+
-- 内存：512MB 以上
-- 存储：1GB 以上可用空间
+- 系统: CentOS 7+、Ubuntu 16+、Debian 8+
+- 内存: 最低 512MB
+- 存储: 最低 1GB 可用空间
+- 架构: x86_64 (amd64) 或 aarch64 (arm64)
 
 ## 安装指南
 
-### 1. 下载安装包
+### 自动安装（推荐）
 
-访问项目[发布页面](https://github.com/MissChina/xui/releases)，下载对应系统架构的安装包：
-- amd64：适用于大多数 x86_64 架构服务器
-- arm64：适用于 ARM 架构服务器
+执行以下命令启动安装脚本：
 
-### 2. 手动安装步骤
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/MissChina/xui/master/install.sh)
+```
+
+选择菜单中的"安装 xui"选项，脚本将自动检测系统环境并完成安装。
+
+### 手动安装
+
+1. 下载适合系统架构的安装包：
+   - [xui-linux-amd64.tar.gz](https://github.com/MissChina/xui/releases/latest/download/xui-linux-amd64.tar.gz) - 适用于 x86_64 架构
+   - [xui-linux-arm64.tar.gz](https://github.com/MissChina/xui/releases/latest/download/xui-linux-arm64.tar.gz) - 适用于 aarch64 架构
+
+2. 解压安装包并设置权限：
 
 ```bash
 # 创建安装目录
 mkdir -p /usr/local/xui
 
-# 解压安装包
-unzip xui-linux-amd64.zip -d /usr/local/xui
+# 解压文件
+tar -xzf xui-linux-amd64.tar.gz -C /usr/local/xui
 
 # 设置执行权限
 chmod +x /usr/local/xui/xui
-chmod +x /usr/local/xui/bin/xray-linux-*
-chmod +x /usr/local/xui/xui.sh
+chmod +x /usr/local/xui/bin/*
+chmod +x /usr/local/xui/*.sh
 
 # 创建软链接
-ln -s /usr/local/xui/xui.sh /usr/bin/xui
+ln -sf /usr/local/xui/xui.sh /usr/bin/xui
 
-# 安装系统服务
-cp /usr/local/xui/xui.service /etc/systemd/system/
-
-# 启动服务
+# 安装服务
+cp -f /usr/local/xui/xui.service /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable xui
 systemctl start xui
 ```
 
-### 3. Docker 安装
+### Docker 安装
 
 ```bash
 # 创建数据目录
-mkdir -p ~/xui/{db,cert}
+mkdir -p ~/xui-data/{db,cert}
 
 # 运行容器
 docker run -d \
-    --name xui \
-    --network host \
-    --restart unless-stopped \
-    -v ~/xui/db:/etc/xui \
-    -v ~/xui/cert:/root/cert \
-    misschina/xui:latest
+  --name xui \
+  --restart unless-stopped \
+  --network host \
+  -v ~/xui-data/db:/etc/xui \
+  -v ~/xui-data/cert:/root/cert \
+  misschina/xui:latest
 ```
 
 ## 使用说明
 
 ### 访问面板
 
-- 默认地址：http://服务器IP:54321
-- 默认账号：admin
-- 默认密码：admin
+安装完成后，可以通过以下方式访问面板：
 
-> ⚠️ 首次登录后请立即修改默认密码！
+- 地址: `http://服务器IP:54321/?token=访问令牌`
+- 默认用户名: `admin`
+- 默认密码: `admin`
+
+访问令牌在安装完成后会显示，也可以通过运行 `xui` 命令查看。
+
+> ⚠️ 安全提示：首次登录后务必修改默认密码和面板访问端口！
 
 ### 管理命令
+
+安装完成后，可使用 `xui` 命令管理面板：
 
 ```bash
 # 显示管理菜单
@@ -102,81 +117,81 @@ xui restart
 # 查看状态
 xui status
 
-# 设置开机自启
-xui enable
-
-# 取消开机自启
-xui disable
-
 # 查看日志
 xui log
 
 # 更新面板
 xui update
 
-# 卸载面板
-xui uninstall
+# 备份配置
+xui backup
+
+# 恢复配置
+xui restore
+
+# 查看帮助
+xui help
 ```
 
 ## 安全建议
 
-1. 修改默认端口
-2. 使用强密码
-3. 配置 HTTPS 访问
-4. 定期更新系统
-5. 配置防火墙规则
+1. 立即修改默认密码和访问端口
+2. 启用 HTTPS (可通过 Nginx/Caddy 反向代理实现)
+3. 使用防火墙限制面板访问IP
+4. 定期更新系统和面板
+5. 定期备份配置文件
 
 ## 常见问题
 
-### 1. 服务无法启动
+### 面板无法访问
 
-检查步骤：
-1. 查看日志：`xui log`
-2. 检查端口占用：`netstat -tlnp | grep 端口号`
-3. 检查权限：`ls -l /usr/local/xui/`
+1. 检查服务状态: `xui status`
+2. 查看错误日志: `xui log`
+3. 检查防火墙是否开放端口: `iptables -L`
+4. 确认面板端口和访问令牌是否正确
 
-### 2. 节点无法连接
+### 节点连接失败
 
-排查方法：
-1. 检查 xray 服务状态：`xui status`
-2. 确认防火墙设置
-3. 验证节点配置
-4. 检查网络连接
+1. 检查节点配置是否正确
+2. 查看xray日志: `journalctl -u xui`
+3. 确认服务器防火墙是否开放节点端口
+4. 检查服务器是否可以正常访问外网
 
-## 开发指南
+## 开发与构建
 
-### 构建发布版本
+### 环境要求
 
-在 Windows 环境中，可以使用以下步骤构建发布版本：
+- Go 1.19+
+- Node.js 16+ (用于前端构建)
 
-```powershell
-# 克隆代码库
-git clone https://github.com/MissChina/xui.git
-cd xui
+### 构建步骤
 
-# 设置执行权限
-Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+1. 克隆代码仓库：
+   ```bash
+   git clone https://github.com/MissChina/xui.git
+   cd xui
+   ```
 
-# 生成发布包
-.\release.ps1
-```
+2. 在 Linux/macOS 上构建：
+   ```bash
+   bash build.sh
+   ```
 
-生成的发布包将位于 `release` 目录中。
+3. 在 Windows 上构建：
+   ```powershell
+   .\build.ps1
+   ```
+
+构建完成后的文件将位于 `release` 目录。
 
 ## 更新日志
 
 ### v1.0.0
-- 初始版本发布
-- 专注于核心代理和面板功能
+- 首个正式版本发布
+- 实现核心代理管理功能
 - 支持多用户多协议管理
-
-## 贡献指南
-
-欢迎提交 Pull Request 或 Issue 来帮助改进这个项目。
-
-## 免责声明
-
-本项目仅供学习和研究使用，请遵守当地法律法规。
+- 流量统计和限制功能
+- 系统状态监控
 
 ## 许可证
 

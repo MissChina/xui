@@ -4,88 +4,146 @@ on:
     tags:
       - v*
   workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 (如 v1.0.0)'
+        required: true
+        default: 'v1.0.0'
 
 jobs:
-  release:
+  build-and-release:
+    name: 构建与发布
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    permissions:
+      contents: write
     steps:
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ github.ref }}
-          draft: false
-          prerelease: false
-          
-  linux-build:
-    name: Build xui for Linux (amd64 and arm64)
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: 检出代码
+        uses: actions/checkout@v4
+        
+      - name: 设置 Go 环境
+        uses: actions/setup-go@v5
         with:
           go-version: '1.20'
           
-      - name: Install dependencies
+      - name: 安装依赖
         run: |
           sudo apt-get update
-          sudo apt-get install -y zip unzip dos2unix tar gzip
-      
-      - name: Build and package
+          sudo apt-get install -y zip unzip tar gzip dos2unix
+
+      - name: 设置版本信息
+        id: version
         run: |
-          # Make release script executable
-          chmod +x release.sh
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+          echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
           
-          # Run the release script
-          ./release.sh
+      - name: 创建 Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: xui ${{ env.VERSION }}
+          tag_name: ${{ env.VERSION }}
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+        
+      - name: 构建 amd64 版本
+        run: |
+          mkdir -p release
+          mkdir -p temp-amd64/bin
           
-          # Verify the packages
+          # 设置环境变量
+          export GOOS=linux
+          export GOARCH=amd64
+          
+          # 编译主程序
+          go build -o temp-amd64/xui main.go
+          
+          # 复制必要文件
+          cp -f install.sh temp-amd64/
+          cp -f xui.sh temp-amd64/
+          cp -f xui.service temp-amd64/
+          mkdir -p temp-amd64/bin
+          
+          if [ -f "bin/xray-linux-amd64" ]; then
+            cp -f bin/xray-linux-amd64 temp-amd64/bin/
+          fi
+          
+          if [ -f "bin/geoip.dat" ]; then
+            cp -f bin/geoip.dat temp-amd64/bin/
+          fi
+          
+          if [ -f "bin/geosite.dat" ]; then
+            cp -f bin/geosite.dat temp-amd64/bin/
+          fi
+          
+          # 转换文件格式为 Unix
+          find temp-amd64 -type f -name "*.sh" -o -name "*.service" | xargs dos2unix
+          
+          # 创建压缩包
+          tar -czf release/xui-linux-amd64.tar.gz -C temp-amd64 .
+          
+          # 创建 ZIP 包
+          (cd temp-amd64 && zip -r ../release/xui-linux-amd64.zip .)
+          
+          # 清理临时目录
+          rm -rf temp-amd64
+          
+      - name: 构建 arm64 版本
+        run: |
+          mkdir -p temp-arm64/bin
+          
+          # 设置环境变量
+          export GOOS=linux
+          export GOARCH=arm64
+          
+          # 编译主程序
+          go build -o temp-arm64/xui main.go
+          
+          # 复制必要文件
+          cp -f install.sh temp-arm64/
+          cp -f xui.sh temp-arm64/
+          cp -f xui.service temp-arm64/
+          mkdir -p temp-arm64/bin
+          
+          if [ -f "bin/xray-linux-arm64" ]; then
+            cp -f bin/xray-linux-arm64 temp-arm64/bin/
+          fi
+          
+          if [ -f "bin/geoip.dat" ]; then
+            cp -f bin/geoip.dat temp-arm64/bin/
+          fi
+          
+          if [ -f "bin/geosite.dat" ]; then
+            cp -f bin/geosite.dat temp-arm64/bin/
+          fi
+          
+          # 转换文件格式为 Unix
+          find temp-arm64 -type f -name "*.sh" -o -name "*.service" | xargs dos2unix
+          
+          # 创建压缩包
+          tar -czf release/xui-linux-arm64.tar.gz -C temp-arm64 .
+          
+          # 创建 ZIP 包
+          (cd temp-arm64 && zip -r ../release/xui-linux-arm64.zip .)
+          
+          # 清理临时目录
+          rm -rf temp-arm64
+          
+      - name: 上传构建产物
+        run: |
           ls -la release/
           
-      - name: Upload amd64 tar.gz package
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 上传资源到 Release
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: release/xui-linux-amd64.tar.gz
-          asset_name: xui-linux-amd64.tar.gz
-          asset_content_type: application/gzip
-          
-      - name: Upload amd64 zip package
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: release/xui-linux-amd64.zip
-          asset_name: xui-linux-amd64.zip
-          asset_content_type: application/zip
-          
-      - name: Upload arm64 tar.gz package
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: release/xui-linux-arm64.tar.gz
-          asset_name: xui-linux-arm64.tar.gz
-          asset_content_type: application/gzip
-          
-      - name: Upload arm64 zip package
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: release/xui-linux-arm64.zip
-          asset_name: xui-linux-arm64.zip
-          asset_content_type: application/zip
+          files: |
+            release/xui-linux-amd64.tar.gz
+            release/xui-linux-arm64.tar.gz
+            release/xui-linux-amd64.zip
+            release/xui-linux-arm64.zip
+          token: ${{ secrets.GITHUB_TOKEN }}

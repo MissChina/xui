@@ -1,0 +1,36 @@
+{
+  "webServer": {
+    "port": 54321,
+    "accessToken": "",
+    "sessionMaxAge": 1800,
+    "panelPath": "/",
+    "siteName": "xui 面板",
+    "xrayConfigTemplate": ""
+  },
+  "security": {
+    "loginFailedMaxCount": 5,
+    "loginBlockMinutes": 10,
+    "enableLoginCaptcha": true,
+    "enableLoginHistory": true,
+    "allowedIPs": []
+  },
+  "xray": {
+    "configPath": "/etc/xui/xray.json",
+    "binPath": "/usr/local/xui/bin/xray-linux-"
+  },
+  "logging": {
+    "level": "info",
+    "enableAccessLog": true,
+    "enableErrorLog": true,
+    "logPath": "/etc/xui/logs"
+  },
+  "dataStat": {
+    "enableTrafficStat": true,
+    "inboundTrafficStatEnabled": true,
+    "outboundTrafficStatEnabled": false,
+    "enableDailyStats": true,
+    "enableCpuStats": true,
+    "enableMemoryStats": true,
+    "enableNetworkStats": true
+  }
+} 
