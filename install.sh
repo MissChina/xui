@@ -65,20 +65,30 @@ install_dependencies() {
     echo -e "${GREEN}依赖包安装完成${PLAIN}"
 }
 
-# 安装 x-ui
+# 安装 xui
 install_x_ui() {
     # 停止已存在的服务
     systemctl stop xui 2>/dev/null
     
     # 下载最新版本
-    local DOWNLOAD_URL="${GITHUB_URL}/releases/download/${LATEST_VERSION}/xui-linux-${ARCH}.zip"
-    echo -e "${GREEN}下载 xui v${LATEST_VERSION} (${ARCH})...${PLAIN}"
+    local DOWNLOAD_URL="${GITHUB_URL}/releases/download/${LATEST_VERSION}/xui-linux-${ARCH}.tar.gz"
+    echo -e "${GREEN}下载 xui ${LATEST_VERSION} (${ARCH})...${PLAIN}"
     echo -e "${GREEN}下载链接: ${DOWNLOAD_URL}${PLAIN}"
     
-    wget -N --no-check-certificate -O "/usr/local/xui-linux-${ARCH}.zip" "$DOWNLOAD_URL"
+    # 尝试优先下载tar.gz文件（更可靠）
+    wget -N --no-check-certificate -O "/usr/local/xui-linux-${ARCH}.tar.gz" "$DOWNLOAD_URL"
+    
+    # 如果下载失败，尝试下载zip文件作为备选
     if [[ $? -ne 0 ]]; then
-        echo -e "${RED}下载 xui 失败，请检查你的网络连接${PLAIN}"
-        exit 1
+        DOWNLOAD_URL="${GITHUB_URL}/releases/download/${LATEST_VERSION}/xui-linux-${ARCH}.zip"
+        echo -e "${YELLOW}tar.gz下载失败，尝试下载zip文件...${PLAIN}"
+        echo -e "${YELLOW}下载链接: ${DOWNLOAD_URL}${PLAIN}"
+        wget -N --no-check-certificate -O "/usr/local/xui-linux-${ARCH}.zip" "$DOWNLOAD_URL"
+        
+        if [[ $? -ne 0 ]]; then
+            echo -e "${RED}下载 xui 失败，请检查你的网络连接${PLAIN}"
+            exit 1
+        fi
     fi
     
     # 准备安装
@@ -87,17 +97,54 @@ install_x_ui() {
     
     # 解压
     echo -e "${GREEN}解压安装包...${PLAIN}"
-    unzip -o "/usr/local/xui-linux-${ARCH}.zip" -d /usr/local/xui
-    if [[ $? -ne 0 ]]; then
-        echo -e "${RED}解压 xui 失败，请检查磁盘空间和权限${PLAIN}"
+    
+    # 检查下载的是tar.gz还是zip文件
+    if [[ -f "/usr/local/xui-linux-${ARCH}.tar.gz" ]]; then
+        # 解压tar.gz文件
+        tar -xzf "/usr/local/xui-linux-${ARCH}.tar.gz" -C /usr/local
+        if [[ $? -ne 0 ]]; then
+            echo -e "${RED}解压 xui 失败，请检查磁盘空间和权限${PLAIN}"
+            rm -f "/usr/local/xui-linux-${ARCH}.tar.gz"
+            exit 1
+        fi
+        # 清理
+        rm -f "/usr/local/xui-linux-${ARCH}.tar.gz"
+    else
+        # 解压zip文件
+        # 处理Windows风格的路径分隔符问题
+        unzip -o "/usr/local/xui-linux-${ARCH}.zip" -d /usr/local
+        if [[ $? -ne 0 ]]; then
+            echo -e "${YELLOW}警告：解压遇到问题，尝试修复Windows风格路径分隔符...${PLAIN}"
+            # 如果解压失败，使用特殊方式解压以处理Windows风格路径分隔符
+            mkdir -p /tmp/xui-extract
+            unzip -o "/usr/local/xui-linux-${ARCH}.zip" -d /tmp/xui-extract
+            if [[ $? -ne 0 ]]; then
+                echo -e "${RED}解压 xui 失败，请检查磁盘空间和权限${PLAIN}"
+                rm -f "/usr/local/xui-linux-${ARCH}.zip"
+                exit 1
+            fi
+            
+            # 特殊情况：手动复制文件以避免路径分隔符问题
+            mkdir -p /usr/local/xui/bin
+            find /tmp/xui-extract -type f -name "xui" -exec cp {} /usr/local/xui/ \;
+            find /tmp/xui-extract -type f -name "*.sh" -exec cp {} /usr/local/xui/ \;
+            find /tmp/xui-extract -type f -name "xui.service" -exec cp {} /usr/local/xui/ \;
+            find /tmp/xui-extract -type f -name "geoip.dat" -exec cp {} /usr/local/xui/bin/ \;
+            find /tmp/xui-extract -type f -name "geosite.dat" -exec cp {} /usr/local/xui/bin/ \;
+            find /tmp/xui-extract -type f -name "xray-linux-${ARCH}" -exec cp {} /usr/local/xui/bin/ \;
+            
+            # 清理临时目录
+            rm -rf /tmp/xui-extract
+        fi
+        
+        # 清理
         rm -f "/usr/local/xui-linux-${ARCH}.zip"
-        exit 1
     fi
     
     # 设置权限
     chmod +x /usr/local/xui/xui
-    chmod +x /usr/local/xui/bin/xray-linux-*
-    chmod +x /usr/local/xui/xui.sh
+    chmod +x /usr/local/xui/bin/* 2>/dev/null
+    chmod +x /usr/local/xui/*.sh 2>/dev/null
     
     # 创建软链接
     ln -sf /usr/local/xui/xui.sh /usr/bin/xui
@@ -108,10 +155,7 @@ install_x_ui() {
     systemctl enable xui
     systemctl start xui
     
-    # 清理
-    rm -f "/usr/local/xui-linux-${ARCH}.zip"
-    
-    echo -e "${GREEN}xui v${LATEST_VERSION} 安装成功！${PLAIN}"
+    echo -e "${GREEN}xui ${LATEST_VERSION} 安装成功！${PLAIN}"
     echo -e ""
     echo -e "面板访问地址: ${GREEN}http://服务器IP:54321${PLAIN}"
     echo -e "用户名: ${GREEN}admin${PLAIN}"
@@ -120,7 +164,7 @@ install_x_ui() {
     echo -e "xui 管理命令: ${GREEN}xui${PLAIN}"
 }
 
-# 卸载 x-ui
+# 卸载 xui
 uninstall_x_ui() {
     echo -e "${YELLOW}确定卸载 xui 吗？(y/n)${PLAIN}"
     read -p "(默认: n): " CONFIRM

@@ -1,4 +1,4 @@
-name: Release X-ui
+name: Release xui
 on:
   push:
     tags:
@@ -21,85 +21,71 @@ jobs:
           release_name: ${{ github.ref }}
           draft: false
           prerelease: false
-  linuxamd64build:
-    name: build x-ui amd64 version
+          
+  linux-build:
+    name: Build xui for Linux (amd64 and arm64)
     needs: release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: '1.20'
-      - name: build linux amd64 version
+          
+      - name: Install dependencies
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o xui-release -ldflags "-s -w" -v .
-          mkdir x-ui
-          cp xui-release x-ui/xui-release
-          cp x-ui.service x-ui/x-ui.service
-          cp x-ui.sh x-ui/x-ui.sh
-          cp install.sh x-ui/install.sh
-          cd x-ui
-          mv xui-release x-ui
-          mkdir bin
-          cd bin
-          wget https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
-          unzip Xray-linux-64.zip
-          rm -f Xray-linux-64.zip geoip.dat geosite.dat
-          wget https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
-          wget https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
-          mv xray xray-linux-amd64
-          cd ..
-          cd ..
-      - name: package
-        run: zip -r x-ui-linux-amd64.zip x-ui
-      - name: upload
+          sudo apt-get update
+          sudo apt-get install -y zip unzip dos2unix
+      
+      - name: Build and package
+        run: |
+          # Make release script executable
+          chmod +x release.sh
+          
+          # Run the release script
+          ./release.sh
+          
+          # Verify the packages
+          ls -la release/
+          
+      - name: Upload amd64 package
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: x-ui-linux-amd64.zip
-          asset_name: x-ui-linux-amd64.zip
+          asset_path: release/xui-linux-amd64.tar.gz
+          asset_name: xui-linux-amd64.tar.gz
+          asset_content_type: application/gzip
+          
+      - name: Upload amd64 zip package
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: release/xui-linux-amd64.zip
+          asset_name: xui-linux-amd64.zip
           asset_content_type: application/zip
-  linuxarm64build:
-    name: build x-ui arm64 version
-    needs: release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '1.20'
-      - name: build linux arm64 version
-        run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o xui-release -ldflags "-s -w" -v .
-          mkdir x-ui
-          cp xui-release x-ui/xui-release
-          cp x-ui.service x-ui/x-ui.service
-          cp x-ui.sh x-ui/x-ui.sh
-          cp install.sh x-ui/install.sh
-          cd x-ui
-          mv xui-release x-ui
-          mkdir bin
-          cd bin
-          wget https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-arm64-v8a.zip
-          unzip Xray-linux-arm64-v8a.zip
-          rm -f Xray-linux-arm64-v8a.zip geoip.dat geosite.dat
-          wget https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat
-          wget https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat
-          mv xray xray-linux-arm64
-          cd ..
-          cd ..
-      - name: package
-        run: zip -r x-ui-linux-arm64.zip x-ui
-      - name: upload
+          
+      - name: Upload arm64 package
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.release.outputs.upload_url }}
-          asset_path: x-ui-linux-arm64.zip
-          asset_name: x-ui-linux-arm64.zip
+          asset_path: release/xui-linux-arm64.tar.gz
+          asset_name: xui-linux-arm64.tar.gz
+          asset_content_type: application/gzip
+          
+      - name: Upload arm64 zip package
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.release.outputs.upload_url }}
+          asset_path: release/xui-linux-arm64.zip
+          asset_name: xui-linux-arm64.zip
           asset_content_type: application/zip

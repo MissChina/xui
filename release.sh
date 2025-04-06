@@ -24,8 +24,9 @@ build() {
     local arch=$1
     echo -e "${BLUE}Building ${arch} version...${NC}"
     
-    # Create temporary build directory
+    # Create temporary build directory with a unique name
     local temp_dir="temp-$arch"
+    rm -rf "$temp_dir"
     mkdir -p "$temp_dir/bin"
     
     # Set environment variables for Go
@@ -65,16 +66,39 @@ build() {
     chmod +x "$temp_dir/"*.sh 2>/dev/null
     chmod +x "$temp_dir/bin/"* 2>/dev/null
     
+    # Ensure all text files use Unix-style line endings
+    find "$temp_dir" -type f -name "*.sh" -o -name "*.service" | xargs -r dos2unix -q 2>/dev/null
+    
     # Create tar.gz package (using Unix-style paths)
     echo -e "${YELLOW}Creating tar.gz package...${NC}"
-    tar -czf "$RELEASE_DIR/xui-linux-${arch}.tar.gz" -C "$(dirname "$temp_dir")" "$(basename "$temp_dir")"
+    tar -czf "$RELEASE_DIR/xui-linux-${arch}.tar.gz" -C "$(dirname "$temp_dir")" "$(basename "$temp_dir")" --transform "s|^$(basename "$temp_dir")|xui|"
     
     # Create zip package (using Unix-style paths)
     echo -e "${YELLOW}Creating zip package...${NC}"
     if command -v zip &> /dev/null; then
-        (cd "$(dirname "$temp_dir")" && zip -r "../$RELEASE_DIR/xui-linux-${arch}.zip" "$(basename "$temp_dir")")
+        # Change to parent directory
+        (
+            cd "$(dirname "$temp_dir")" || exit
+            # Rename directory to xui before zipping
+            mv "$(basename "$temp_dir")" "xui"
+            # Use -r for recursive with forward slashes inside zip
+            zip -r "../$RELEASE_DIR/xui-linux-${arch}.zip" "xui" -x "*.DS_Store" "*.git*"
+            # Move it back to original name
+            mv "xui" "$(basename "$temp_dir")"
+        )
     else
         echo -e "${RED}Warning: zip command not found, skipping zip package${NC}"
+    fi
+    
+    # Test the zip file for backslashes (if unzip is available)
+    if command -v unzip &> /dev/null; then
+        echo -e "${YELLOW}Verifying zip file for path separators...${NC}"
+        unzip -l "$RELEASE_DIR/xui-linux-${arch}.zip" | grep -q "\\"
+        if [ $? -eq 0 ]; then
+            echo -e "${RED}Warning: Backslashes detected in zip file${NC}"
+        else
+            echo -e "${GREEN}Zip file looks good - no backslashes detected${NC}"
+        fi
     fi
     
     # Cleanup
@@ -87,6 +111,11 @@ build() {
 if ! command -v go &> /dev/null; then
     echo -e "${RED}Error: Go environment not found. Please install Go first.${NC}"
     exit 1
+fi
+
+# Check for dos2unix
+if ! command -v dos2unix &> /dev/null; then
+    echo -e "${YELLOW}Warning: dos2unix not found, will attempt without line ending conversion${NC}"
 fi
 
 # Main loop - build each architecture
