@@ -116,66 +116,6 @@ func showSetting(show bool) {
 	}
 }
 
-func updateTgbotEnableSts(status bool) {
-	settingService := service.SettingService{}
-	currentTgSts, err := settingService.GetTgbotenabled()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	logger.Infof("current enabletgbot status[%v],need update to status[%v]", currentTgSts, status)
-	if currentTgSts != status {
-		err := settingService.SetTgbotenabled(status)
-		if err != nil {
-			fmt.Println(err)
-			return
-		} else {
-			logger.Infof("SetTgbotenabled[%v] success", status)
-		}
-	}
-	return
-}
-
-func updateTgbotSetting(tgBotToken string, tgBotChatid int, tgBotRuntime string) {
-	err := database.InitDB(config.GetDBPath())
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	settingService := service.SettingService{}
-
-	if tgBotToken != "" {
-		err := settingService.SetTgBotToken(tgBotToken)
-		if err != nil {
-			fmt.Println(err)
-			return
-		} else {
-			logger.Info("updateTgbotSetting tgBotToken success")
-		}
-	}
-
-	if tgBotRuntime != "" {
-		err := settingService.SetTgbotRuntime(tgBotRuntime)
-		if err != nil {
-			fmt.Println(err)
-			return
-		} else {
-			logger.Infof("updateTgbotSetting tgBotRuntime[%s] success", tgBotRuntime)
-		}
-	}
-
-	if tgBotChatid != 0 {
-		err := settingService.SetTgBotChatId(tgBotChatid)
-		if err != nil {
-			fmt.Println(err)
-			return
-		} else {
-			logger.Info("updateTgbotSetting tgBotChatid success")
-		}
-	}
-}
-
 func updateSetting(port int, username string, password string) {
 	err := database.InitDB(config.GetDBPath())
 	if err != nil {
@@ -215,18 +155,10 @@ func main() {
 
 	runCmd := flag.NewFlagSet("run", flag.ExitOnError)
 
-	v2uiCmd := flag.NewFlagSet("v2-ui", flag.ExitOnError)
-	var dbPath string
-	v2uiCmd.StringVar(&dbPath, "db", "/etc/v2-ui/v2-ui.db", "set v2-ui db file path")
-
 	settingCmd := flag.NewFlagSet("setting", flag.ExitOnError)
 	var port int
 	var username string
 	var password string
-	var tgbottoken string
-	var tgbotchatid int
-	var enabletgbot bool
-	var tgbotRuntime string
 	var reset bool
 	var show bool
 	settingCmd.BoolVar(&reset, "reset", false, "reset all settings")
@@ -234,10 +166,6 @@ func main() {
 	settingCmd.IntVar(&port, "port", 0, "set panel port")
 	settingCmd.StringVar(&username, "username", "", "set login username")
 	settingCmd.StringVar(&password, "password", "", "set login password")
-	settingCmd.StringVar(&tgbottoken, "tgbottoken", "", "set telegrame bot token")
-	settingCmd.StringVar(&tgbotRuntime, "tgbotRuntime", "", "set telegrame bot cron time")
-	settingCmd.IntVar(&tgbotchatid, "tgbotchatid", 0, "set telegrame bot chat id")
-	settingCmd.BoolVar(&enabletgbot, "enabletgbot", false, "enable telegram bot notify")
 
 	oldUsage := flag.Usage
 	flag.Usage = func() {
@@ -245,7 +173,6 @@ func main() {
 		fmt.Println()
 		fmt.Println("Commands:")
 		fmt.Println("    run            run web panel")
-		fmt.Println("    v2-ui          migrate form v2-ui")
 		fmt.Println("    setting        set settings")
 	}
 
@@ -263,16 +190,6 @@ func main() {
 			return
 		}
 		runWebServer()
-	case "v2-ui":
-		err := v2uiCmd.Parse(os.Args[2:])
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		err = v2ui.MigrateFromV2UI(dbPath)
-		if err != nil {
-			fmt.Println("migrate from v2-ui failed:", err)
-		}
 	case "setting":
 		err := settingCmd.Parse(os.Args[2:])
 		if err != nil {
@@ -287,15 +204,10 @@ func main() {
 		if show {
 			showSetting(show)
 		}
-		if (tgbottoken != "") || (tgbotchatid != 0) || (tgbotRuntime != "") {
-			updateTgbotSetting(tgbottoken, tgbotchatid, tgbotRuntime)
-		}
 	default:
-		fmt.Println("except 'run' or 'v2-ui' or 'setting' subcommands")
+		fmt.Println("except 'run' or 'setting' subcommands")
 		fmt.Println()
 		runCmd.Usage()
-		fmt.Println()
-		v2uiCmd.Usage()
 		fmt.Println()
 		settingCmd.Usage()
 	}

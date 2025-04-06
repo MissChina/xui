@@ -1,143 +1,161 @@
-# x-ui
+# x-ui 简化版
 
-支持多协议多用户的 xray 面板
+一个轻量级的 xray 代理管理面板，专注于核心功能。
 
-# 功能介绍
+## 主要特点
 
-- 系统状态监控
-- 支持多用户多协议，网页可视化操作
-- 支持的协议：vmess、vless、trojan、shadowsocks、dokodemo-door、socks、http
-- 支持配置更多传输配置
-- 流量统计，限制流量，限制到期时间
-- 可自定义 xray 配置模板
-- 支持 https 访问面板（自备域名 + ssl 证书）
-- 支持一键SSL证书申请且自动续签
-- 更多高级配置项，详见面板
+- 🚀 简洁高效：去除了不必要的功能，专注于核心代理管理
+- 🔒 安全可靠：支持多用户多协议管理
+- 📊 实时监控：系统状态和流量统计
+- 🛠️ 易于使用：网页可视化操作界面
+- 🔄 多协议支持：vmess、vless、trojan、shadowsocks 等
 
-# 安装&升级
+## 快速开始
 
-```
-bash <(curl -Ls https://raw.githubusercontent.com/vaxilu/x-ui/master/install.sh)
+### 一键安装
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/MissChina/xui/master/install.sh)
 ```
 
-## 手动安装&升级
+### 系统要求
 
-1. 首先从 https://github.com/vaxilu/x-ui/releases 下载最新的压缩包，一般选择 `amd64`架构
-2. 然后将这个压缩包上传到服务器的 `/root/`目录下，并使用 `root`用户登录服务器
+- 操作系统：CentOS 7+ / Ubuntu 16+ / Debian 8+
+- 内存：512MB 以上
+- 存储：1GB 以上可用空间
 
-> 如果你的服务器 cpu 架构不是 `amd64`，自行将命令中的 `amd64`替换为其他架构
+## 安装指南
 
-```
-cd /root/
-rm x-ui/ /usr/local/x-ui/ /usr/bin/x-ui -rf
-tar zxvf x-ui-linux-amd64.tar.gz
-chmod +x x-ui/x-ui x-ui/bin/xray-linux-* x-ui/x-ui.sh
-cp x-ui/x-ui.sh /usr/bin/x-ui
-cp -f x-ui/x-ui.service /etc/systemd/system/
-mv x-ui/ /usr/local/
+### 1. 下载安装包
+
+访问项目发布页面，下载对应系统架构的安装包：
+- amd64：适用于大多数 x86_64 架构服务器
+- arm64：适用于 ARM 架构服务器
+
+### 2. 安装步骤
+
+```bash
+# 创建安装目录
+mkdir -p /usr/local/x-ui
+
+# 解压安装包
+tar zxvf x-ui-linux-amd64.tar.gz -C /usr/local/x-ui
+
+# 设置执行权限
+chmod +x /usr/local/x-ui/x-ui
+chmod +x /usr/local/x-ui/bin/xray-linux-*
+chmod +x /usr/local/x-ui/x-ui.sh
+
+# 创建软链接
+ln -s /usr/local/x-ui/x-ui.sh /usr/bin/x-ui
+
+# 安装系统服务
+cp /usr/local/x-ui/x-ui.service /etc/systemd/system/
+
+# 启动服务
 systemctl daemon-reload
 systemctl enable x-ui
-systemctl restart x-ui
+systemctl start x-ui
 ```
 
-## 使用docker安装
+### 3. Docker 安装
 
-> 此 docker 教程与 docker 镜像由[Chasing66](https://github.com/Chasing66)提供
+```bash
+# 创建数据目录
+mkdir -p ~/x-ui/{db,cert}
 
-1. 安装docker
-
-```shell
-curl -fsSL https://get.docker.com | sh
+# 运行容器
+docker run -d \
+    --name x-ui \
+    --network host \
+    --restart unless-stopped \
+    -v ~/x-ui/db:/etc/x-ui \
+    -v ~/x-ui/cert:/root/cert \
+    你的docker镜像地址
 ```
 
-2. 安装x-ui
+## 使用说明
 
-```shell
-mkdir x-ui && cd x-ui
-docker run -itd --network=host \
-    -v $PWD/db/:/etc/x-ui/ \
-    -v $PWD/cert/:/root/cert/ \
-    --name x-ui --restart=unless-stopped \
-    enwaiax/x-ui:latest
+### 访问面板
+
+- 默认地址：http://服务器IP:54321
+- 默认账号：admin
+- 默认密码：admin
+
+> 首次登录后请立即修改默认密码！
+
+### 管理命令
+
+```bash
+# 显示管理菜单
+x-ui
+
+# 启动服务
+x-ui start
+
+# 停止服务
+x-ui stop
+
+# 重启服务
+x-ui restart
+
+# 查看状态
+x-ui status
+
+# 设置开机自启
+x-ui enable
+
+# 取消开机自启
+x-ui disable
+
+# 查看日志
+x-ui log
+
+# 更新面板
+x-ui update
 ```
 
-> Build 自己的镜像
+## 安全建议
 
-```shell
-docker build -t x-ui .
-```
+1. 修改默认端口
+2. 使用强密码
+3. 配置 HTTPS 访问
+4. 定期更新系统
+5. 配置防火墙规则
 
-## SSL证书申请
+## 常见问题
 
-> 此功能与教程由[FranzKafkaYu](https://github.com/FranzKafkaYu)提供
+### 1. 服务无法启动
 
-脚本内置SSL证书申请功能，使用该脚本申请证书，需满足以下条件:
+检查步骤：
+1. 查看日志：`x-ui log`
+2. 检查端口占用：`netstat -tlnp | grep 端口号`
+3. 检查权限：`ls -l /usr/local/x-ui/`
 
-- 知晓Cloudflare 注册邮箱
-- 知晓Cloudflare Global API Key
-- 域名已通过cloudflare进行解析到当前服务器
+### 2. 节点无法连接
 
-获取Cloudflare Global API Key的方法:
-    ![](media/bda84fbc2ede834deaba1c173a932223.png)
-    ![](media/d13ffd6a73f938d1037d0708e31433bf.png)
+排查方法：
+1. 检查 xray 服务状态：`x-ui status`
+2. 确认防火墙设置
+3. 验证节点配置
+4. 检查网络连接
 
-使用时只需输入 `域名`, `邮箱`, `API KEY`即可，示意图如下：
-        ![](media/2022-04-04_141259.png)
+## 更新日志
 
-注意事项:
+### v1.0.0
+- 初始版本发布
+- 移除 Telegram 机器人功能
+- 移除 v2-ui 迁移功能
+- 移除 SSL 证书申请功能
+- 保留核心代理和面板功能
 
-- 该脚本使用DNS API进行证书申请
-- 默认使用Let'sEncrypt作为CA方
-- 证书安装目录为/root/cert目录
-- 本脚本申请证书均为泛域名证书
+## 技术支持
 
-## Tg机器人使用（开发中，暂不可使用）
+如有问题，请通过以下方式获取支持：
+1. 提交 Issue
+2. 查看项目文档
+3. 加入讨论群组
 
-> 此功能与教程由[FranzKafkaYu](https://github.com/FranzKafkaYu)提供
+## 免责声明
 
-X-UI支持通过Tg机器人实现每日流量通知，面板登录提醒等功能，使用Tg机器人，需要自行申请
-具体申请教程可以参考[博客链接](https://coderfan.net/how-to-use-telegram-bot-to-alarm-you-when-someone-login-into-your-vps.html)
-使用说明:在面板后台设置机器人相关参数，具体包括
-
-- Tg机器人Token
-- Tg机器人ChatId
-- Tg机器人周期运行时间，采用crontab语法  
-
-参考语法：
-- 30 * * * * * //每一分的第30s进行通知
-- @hourly      //每小时通知
-- @daily       //每天通知（凌晨零点整）
-- @every 8h    //每8小时通知  
-
-TG通知内容：
-- 节点流量使用
-- 面板登录提醒
-- 节点到期提醒
-- 流量预警提醒  
-
-更多功能规划中...
-## 建议系统
-
-- CentOS 7+
-- Ubuntu 16+
-- Debian 8+
-
-# 常见问题
-
-## 从 v2-ui 迁移
-
-首先在安装了 v2-ui 的服务器上安装最新版 x-ui，然后使用以下命令进行迁移，将迁移本机 v2-ui 的 `所有 inbound 账号数据`至 x-ui，`面板设置和用户名密码不会迁移`
-
-> 迁移成功后请 `关闭 v2-ui`并且 `重启 x-ui`，否则 v2-ui 的 inbound 会与 x-ui 的 inbound 会产生 `端口冲突`
-
-```
-x-ui v2-ui
-```
-
-## issue 关闭
-
-各种小白问题看得血压很高
-
-## Stargazers over time
-
-[![Stargazers over time](https://starchart.cc/vaxilu/x-ui.svg)](https://starchart.cc/vaxilu/x-ui)
+本项目仅供学习和研究使用，请遵守当地法律法规。

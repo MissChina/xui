@@ -1,10 +1,43 @@
-.idea
-tmp
-bin/xray-darwin-arm64
-bin/config.json
+# 编译输出
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 测试二进制文件
+*.test
+
+# 输出目录
+bin/
 dist/
-x-ui-*.tar.gz
-/x-ui
-/release.sh
-.sync*
-main
+
+# 依赖目录
+vendor/
+
+# IDE 文件
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+
+# 临时文件
+*.tmp
+*.temp
+
+# 配置文件
+config.json
+*.conf
+*.ini
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3

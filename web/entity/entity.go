@@ -32,13 +32,8 @@ type AllSetting struct {
 	WebCertFile        string `json:"webCertFile" form:"webCertFile"`
 	WebKeyFile         string `json:"webKeyFile" form:"webKeyFile"`
 	WebBasePath        string `json:"webBasePath" form:"webBasePath"`
-	TgBotEnable        bool   `json:"tgBotEnable" form:"tgBotEnable"`
-	TgBotToken         string `json:"tgBotToken" form:"tgBotToken"`
-	TgBotChatId        int    `json:"tgBotChatId" form:"tgBotChatId"`
-	TgRunTime          string `json:"tgRunTime" form:"tgRunTime"`
 	XrayTemplateConfig string `json:"xrayTemplateConfig" form:"xrayTemplateConfig"`
-
-	TimeLocation string `json:"timeLocation" form:"timeLocation"`
+	TimeLocation       string `json:"timeLocation" form:"timeLocation"`
 }
 
 func (s *AllSetting) CheckValid() error {
