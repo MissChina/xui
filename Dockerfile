@@ -1,16 +1,23 @@
-FROM alpine:latest
+FROM golang:1.18-alpine AS builder
 
-WORKDIR /root/
+WORKDIR /app
 
 COPY . .
 
-RUN apk add --no-cache tzdata \
-    && chmod +x x-ui \
-    && chmod +x bin/xray-linux-* \
-    && chmod +x x-ui.sh
+RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux go build -o x-ui -ldflags "-s -w" .
 
-ENV TZ=Asia/Shanghai
+FROM alpine:latest
 
-EXPOSE 54321
+WORKDIR /usr/local/x-ui
 
-ENTRYPOINT ["./x-ui"]
+COPY --from=builder /app/x-ui /usr/local/x-ui/
+COPY bin/ /usr/local/x-ui/bin/
+COPY web/ /usr/local/x-ui/web/
+
+RUN mkdir -p /etc/x-ui
+RUN chmod +x /usr/local/x-ui/x-ui
+
+VOLUME ["/etc/x-ui"]
+
+ENTRYPOINT ["/usr/local/x-ui/x-ui"]

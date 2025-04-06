@@ -6,8 +6,8 @@ import (
 	"net"
 	"strings"
 	"time"
-	"x-ui/util/common"
-	"x-ui/xray"
+	"xui/util/common"
+	"xui/xray"
 )
 
 type Msg struct {

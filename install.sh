@@ -1,127 +1,184 @@
 #!/bin/bash
 
-# 颜色定义
+# 定义颜色
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-NC='\033[0m'
+PLAIN='\033[0m'
 
-# 检查是否为root用户
-if [ "$(id -u)" != "0" ]; then
-    echo -e "${RED}错误：请使用root用户运行此脚本${NC}"
-    exit 1
-fi
+# 检查是否为 root 用户
+check_root() {
+    if [[ $EUID -ne 0 ]]; then
+        echo -e "${RED}错误: 此脚本必须以 root 身份运行！${PLAIN}"
+        exit 1
+    fi
+}
 
 # 检查系统架构
-ARCH=$(uname -m)
-case $ARCH in
-    x86_64)
+check_arch() {
+    ARCH=$(uname -m)
+    if [[ $ARCH == "x86_64" || $ARCH == "x64" || $ARCH == "amd64" ]]; then
         ARCH="amd64"
-        ;;
-    aarch64)
+    elif [[ $ARCH == "aarch64" || $ARCH == "arm64" ]]; then
         ARCH="arm64"
-        ;;
-    *)
-        echo -e "${RED}错误：不支持的系统架构${NC}"
+    else
+        echo -e "${RED}不支持的架构: $ARCH${PLAIN}"
         exit 1
-        ;;
-esac
+    fi
+}
 
-# 安装目录
-INSTALL_DIR="/usr/local/x-ui"
-BIN_DIR="/usr/bin"
+# 检查系统
+check_system() {
+    if [[ -f /etc/redhat-release ]]; then
+        SYSTEM="centos"
+    elif [[ -f /etc/debian_version ]]; then
+        SYSTEM="debian"
+    else
+        echo -e "${RED}不支持的系统！${PLAIN}"
+        exit 1
+    fi
+}
 
-# 下载地址
-DOWNLOAD_URL="https://github.com/MissChina/xui/releases/latest/download/x-ui-linux-${ARCH}.tar.gz"
+# 获取最新版本
+get_latest_version() {
+    GITHUB_URL="https://github.com/MissChina/xui"
+    LATEST_VERSION=$(curl -Ls "https://api.github.com/repos/MissChina/xui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    if [[ ! -n "$LATEST_VERSION" ]]; then
+        echo -e "${RED}获取最新版本失败，请检查你的网络连接${PLAIN}"
+        exit 1
+    fi
+    echo -e "${GREEN}检测到最新版本：${LATEST_VERSION}${PLAIN}"
+}
 
-# 安装函数
-install_xui() {
-    echo -e "${BLUE}开始安装 x-ui...${NC}"
+# 安装依赖
+install_dependencies() {
+    echo -e "${GREEN}安装依赖包...${PLAIN}"
     
-    # 创建安装目录
-    mkdir -p $INSTALL_DIR
+    if [[ $SYSTEM == "centos" ]]; then
+        yum update -y
+        yum install -y wget curl unzip tar
+    else
+        apt update -y
+        apt install -y wget curl unzip tar
+    fi
     
-    # 下载安装包
-    echo -e "${YELLOW}正在下载安装包...${NC}"
-    if ! wget -O /tmp/x-ui.tar.gz $DOWNLOAD_URL; then
-        echo -e "${RED}下载失败，请检查网络连接或访问 GitHub Releases 页面手动下载${NC}"
-        echo -e "${YELLOW}下载地址：${DOWNLOAD_URL}${NC}"
+    echo -e "${GREEN}依赖包安装完成${PLAIN}"
+}
+
+# 安装 x-ui
+install_x_ui() {
+    # 停止已存在的服务
+    systemctl stop xui 2>/dev/null
+    
+    # 下载最新版本
+    local DOWNLOAD_URL="${GITHUB_URL}/releases/download/${LATEST_VERSION}/xui-linux-${ARCH}.zip"
+    echo -e "${GREEN}下载 xui v${LATEST_VERSION} (${ARCH})...${PLAIN}"
+    echo -e "${GREEN}下载链接: ${DOWNLOAD_URL}${PLAIN}"
+    
+    wget -N --no-check-certificate -O "/usr/local/xui-linux-${ARCH}.zip" "$DOWNLOAD_URL"
+    if [[ $? -ne 0 ]]; then
+        echo -e "${RED}下载 xui 失败，请检查你的网络连接${PLAIN}"
         exit 1
     fi
     
-    # 解压安装包
-    echo -e "${YELLOW}正在解压安装包...${NC}"
-    if ! tar zxvf /tmp/x-ui.tar.gz -C $INSTALL_DIR; then
-        echo -e "${RED}解压失败，请检查下载的安装包是否完整${NC}"
+    # 准备安装
+    rm -rf /usr/local/xui
+    mkdir -p /usr/local/xui
+    
+    # 解压
+    echo -e "${GREEN}解压安装包...${PLAIN}"
+    unzip -o "/usr/local/xui-linux-${ARCH}.zip" -d /usr/local/xui
+    if [[ $? -ne 0 ]]; then
+        echo -e "${RED}解压 xui 失败，请检查磁盘空间和权限${PLAIN}"
+        rm -f "/usr/local/xui-linux-${ARCH}.zip"
         exit 1
     fi
     
-    # 设置执行权限
-    chmod +x $INSTALL_DIR/x-ui
-    chmod +x $INSTALL_DIR/bin/xray-linux-*
-    chmod +x $INSTALL_DIR/x-ui.sh
+    # 设置权限
+    chmod +x /usr/local/xui/xui
+    chmod +x /usr/local/xui/bin/xray-linux-*
+    chmod +x /usr/local/xui/xui.sh
     
     # 创建软链接
-    ln -sf $INSTALL_DIR/x-ui.sh $BIN_DIR/x-ui
+    ln -sf /usr/local/xui/xui.sh /usr/bin/xui
     
-    # 安装系统服务
-    cp $INSTALL_DIR/x-ui.service /etc/systemd/system/
-    
-    # 启动服务
+    # 安装服务
+    cp -f /usr/local/xui/xui.service /etc/systemd/system/
     systemctl daemon-reload
-    systemctl enable x-ui
-    systemctl start x-ui
+    systemctl enable xui
+    systemctl start xui
     
-    # 清理临时文件
-    rm -f /tmp/x-ui.tar.gz
+    # 清理
+    rm -f "/usr/local/xui-linux-${ARCH}.zip"
     
-    echo -e "${GREEN}x-ui 安装完成！${NC}"
-    echo -e "${BLUE}面板地址：http://服务器IP:54321${NC}"
-    echo -e "${BLUE}默认用户名：admin${NC}"
-    echo -e "${BLUE}默认密码：admin${NC}"
-    echo -e "${YELLOW}请及时修改默认密码！${NC}"
+    echo -e "${GREEN}xui v${LATEST_VERSION} 安装成功！${PLAIN}"
+    echo -e ""
+    echo -e "面板访问地址: ${GREEN}http://服务器IP:54321${PLAIN}"
+    echo -e "用户名: ${GREEN}admin${PLAIN}"
+    echo -e "密码: ${GREEN}admin${PLAIN}"
+    echo -e ""
+    echo -e "xui 管理命令: ${GREEN}xui${PLAIN}"
 }
 
-# 卸载函数
-uninstall_xui() {
-    echo -e "${YELLOW}开始卸载 x-ui...${NC}"
+# 卸载 x-ui
+uninstall_x_ui() {
+    echo -e "${YELLOW}确定卸载 xui 吗？(y/n)${PLAIN}"
+    read -p "(默认: n): " CONFIRM
+    if [[ $CONFIRM != "y" ]]; then
+        echo -e "${GREEN}已取消${PLAIN}"
+        return
+    fi
     
-    systemctl stop x-ui
-    systemctl disable x-ui
-    rm -f /etc/systemd/system/x-ui.service
-    rm -f $BIN_DIR/x-ui
-    rm -rf $INSTALL_DIR
+    systemctl stop xui
+    systemctl disable xui
+    rm -rf /usr/local/xui
+    rm -f /usr/bin/xui
+    rm -f /etc/systemd/system/xui.service
+    systemctl daemon-reload
     
-    echo -e "${GREEN}x-ui 卸载完成！${NC}"
+    echo -e "${GREEN}xui 卸载成功${PLAIN}"
 }
 
-# 主菜单
-show_menu() {
-    echo -e "${BLUE}========================================${NC}"
-    echo -e "${BLUE}            x-ui 安装脚本               ${NC}"
-    echo -e "${BLUE}========================================${NC}"
-    echo -e "1. 安装 x-ui"
-    echo -e "2. 卸载 x-ui"
-    echo -e "0. 退出"
-    echo -e "${BLUE}========================================${NC}"
-    read -p "请选择操作 [0-2]: " choice
-    case $choice in
-        1)
-            install_xui
-            ;;
-        2)
-            uninstall_xui
-            ;;
-        0)
-            exit 0
-            ;;
-        *)
-            echo -e "${RED}无效的选择，请重新输入${NC}"
-            show_menu
-            ;;
-    esac
+# 显示使用说明
+show_usage() {
+    echo -e "${GREEN}xui 管理脚本${PLAIN}"
+    echo -e "使用方法: ${GREEN}bash install.sh [选项]${PLAIN}"
+    echo -e "选项:"
+    echo -e "  install   - 安装 xui"
+    echo -e "  uninstall - 卸载 xui"
+    echo -e "  help      - 显示此帮助信息"
 }
 
 # 显示菜单
-show_menu
+show_menu() {
+    echo -e "${GREEN}xui 安装管理脚本${PLAIN}"
+    echo -e ""
+    echo -e "${GREEN}1.${PLAIN} 安装 xui"
+    echo -e "${GREEN}2.${PLAIN} 卸载 xui"
+    echo -e "${GREEN}0.${PLAIN} 退出"
+    read -p "请输入选项 [0-2]: " OPTION
+    
+    case $OPTION in
+        0) exit 0 ;;
+        1) check_root && check_arch && check_system && get_latest_version && install_dependencies && install_x_ui ;;
+        2) check_root && uninstall_x_ui ;;
+        *) echo -e "${RED}无效的选项${PLAIN}" ;;
+    esac
+}
+
+# 主函数
+main() {
+    if [[ $# -gt 0 ]]; then
+        case $1 in
+            install) check_root && check_arch && check_system && get_latest_version && install_dependencies && install_x_ui ;;
+            uninstall) check_root && uninstall_x_ui ;;
+            help) show_usage ;;
+            *) show_usage ;;
+        esac
+    else
+        show_menu
+    fi
+}
+
+# 执行主函数
+main "$@"

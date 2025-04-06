@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"strconv"
-	"x-ui/database/model"
-	"x-ui/logger"
-	"x-ui/web/global"
-	"x-ui/web/service"
-	"x-ui/web/session"
+	"xui/database/model"
+	"xui/logger"
+	"xui/web/global"
+	"xui/web/service"
+	"xui/web/session"
 )
 
 type InboundController struct {

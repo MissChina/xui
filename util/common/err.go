@@ -3,7 +3,7 @@ package common
 import (
 	"errors"
 	"fmt"
-	"x-ui/logger"
+	"xui/logger"
 )
 
 var CtxDone = errors.New("context done")

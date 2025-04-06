@@ -1,4 +1,4 @@
-# x-ui 简化版
+# xui 简化版
 
 一个轻量级的 xray 代理管理面板，专注于核心功能。
 
@@ -28,50 +28,50 @@ bash <(curl -Ls https://raw.githubusercontent.com/MissChina/xui/master/install.s
 
 ### 1. 下载安装包
 
-访问项目发布页面，下载对应系统架构的安装包：
+访问项目[发布页面](https://github.com/MissChina/xui/releases)，下载对应系统架构的安装包：
 - amd64：适用于大多数 x86_64 架构服务器
 - arm64：适用于 ARM 架构服务器
 
-### 2. 安装步骤
+### 2. 手动安装步骤
 
 ```bash
 # 创建安装目录
-mkdir -p /usr/local/x-ui
+mkdir -p /usr/local/xui
 
 # 解压安装包
-tar zxvf x-ui-linux-amd64.tar.gz -C /usr/local/x-ui
+unzip xui-linux-amd64.zip -d /usr/local/xui
 
 # 设置执行权限
-chmod +x /usr/local/x-ui/x-ui
-chmod +x /usr/local/x-ui/bin/xray-linux-*
-chmod +x /usr/local/x-ui/x-ui.sh
+chmod +x /usr/local/xui/xui
+chmod +x /usr/local/xui/bin/xray-linux-*
+chmod +x /usr/local/xui/xui.sh
 
 # 创建软链接
-ln -s /usr/local/x-ui/x-ui.sh /usr/bin/x-ui
+ln -s /usr/local/xui/xui.sh /usr/bin/xui
 
 # 安装系统服务
-cp /usr/local/x-ui/x-ui.service /etc/systemd/system/
+cp /usr/local/xui/xui.service /etc/systemd/system/
 
 # 启动服务
 systemctl daemon-reload
-systemctl enable x-ui
-systemctl start x-ui
+systemctl enable xui
+systemctl start xui
 ```
 
 ### 3. Docker 安装
 
 ```bash
 # 创建数据目录
-mkdir -p ~/x-ui/{db,cert}
+mkdir -p ~/xui/{db,cert}
 
 # 运行容器
 docker run -d \
-    --name x-ui \
+    --name xui \
     --network host \
     --restart unless-stopped \
-    -v ~/x-ui/db:/etc/x-ui \
-    -v ~/x-ui/cert:/root/cert \
-    你的docker镜像地址
+    -v ~/xui/db:/etc/xui \
+    -v ~/xui/cert:/root/cert \
+    misschina/xui:latest
 ```
 
 ## 使用说明
@@ -82,37 +82,40 @@ docker run -d \
 - 默认账号：admin
 - 默认密码：admin
 
-> 首次登录后请立即修改默认密码！
+> ⚠️ 首次登录后请立即修改默认密码！
 
 ### 管理命令
 
 ```bash
 # 显示管理菜单
-x-ui
+xui
 
 # 启动服务
-x-ui start
+xui start
 
 # 停止服务
-x-ui stop
+xui stop
 
 # 重启服务
-x-ui restart
+xui restart
 
 # 查看状态
-x-ui status
+xui status
 
 # 设置开机自启
-x-ui enable
+xui enable
 
 # 取消开机自启
-x-ui disable
+xui disable
 
 # 查看日志
-x-ui log
+xui log
 
 # 更新面板
-x-ui update
+xui update
+
+# 卸载面板
+xui uninstall
 ```
 
 ## 安全建议
@@ -128,34 +131,53 @@ x-ui update
 ### 1. 服务无法启动
 
 检查步骤：
-1. 查看日志：`x-ui log`
+1. 查看日志：`xui log`
 2. 检查端口占用：`netstat -tlnp | grep 端口号`
-3. 检查权限：`ls -l /usr/local/x-ui/`
+3. 检查权限：`ls -l /usr/local/xui/`
 
 ### 2. 节点无法连接
 
 排查方法：
-1. 检查 xray 服务状态：`x-ui status`
+1. 检查 xray 服务状态：`xui status`
 2. 确认防火墙设置
 3. 验证节点配置
 4. 检查网络连接
+
+## 开发指南
+
+### 构建发布版本
+
+在 Windows 环境中，可以使用以下步骤构建发布版本：
+
+```powershell
+# 克隆代码库
+git clone https://github.com/MissChina/xui.git
+cd xui
+
+# 设置执行权限
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# 生成发布包
+.\release.ps1
+```
+
+生成的发布包将位于 `release` 目录中。
 
 ## 更新日志
 
 ### v1.0.0
 - 初始版本发布
-- 移除 Telegram 机器人功能
-- 移除 v2-ui 迁移功能
-- 移除 SSL 证书申请功能
-- 保留核心代理和面板功能
+- 专注于核心代理和面板功能
+- 支持多用户多协议管理
 
-## 技术支持
+## 贡献指南
 
-如有问题，请通过以下方式获取支持：
-1. 提交 Issue
-2. 查看项目文档
-3. 加入讨论群组
+欢迎提交 Pull Request 或 Issue 来帮助改进这个项目。
 
 ## 免责声明
 
 本项目仅供学习和研究使用，请遵守当地法律法规。
+
+## 许可证
+
+[MIT License](LICENSE)
