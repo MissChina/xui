@@ -41,6 +41,7 @@ check_system() {
 
 # 获取最新版本
 get_latest_version() {
+    GITHUB_URL="https://github.com/MissChina/xui"
     echo -e "${GREEN}正在获取最新版本信息...${PLAIN}"
     
     # 尝试使用 GitHub API 获取最新版本
