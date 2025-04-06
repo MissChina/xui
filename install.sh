@@ -41,12 +41,23 @@ check_system() {
 
 # 获取最新版本
 get_latest_version() {
-    GITHUB_URL="https://github.com/MissChina/xui"
-    LATEST_VERSION=$(curl -Ls "https://api.github.com/repos/MissChina/xui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    echo -e "${GREEN}正在获取最新版本信息...${PLAIN}"
+    
+    # 尝试使用 GitHub API 获取最新版本
+    LATEST_VERSION=$(curl -s https://api.github.com/repos/MissChina/xui/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    
+    if [[ ! -n "$LATEST_VERSION" ]]; then
+        echo -e "${YELLOW}GitHub API 获取失败，尝试从网页获取...${PLAIN}"
+        # 如果 API 获取失败，尝试从网页获取
+        LATEST_VERSION=$(curl -s https://github.com/MissChina/xui/releases/latest | grep -o 'tag/[^"]*' | cut -d'/' -f2)
+    fi
+    
     if [[ ! -n "$LATEST_VERSION" ]]; then
         echo -e "${RED}获取最新版本失败，请检查你的网络连接${PLAIN}"
+        echo -e "${YELLOW}提示：如果使用代理，请确保代理设置正确${PLAIN}"
         exit 1
     fi
+    
     echo -e "${GREEN}检测到最新版本：${LATEST_VERSION}${PLAIN}"
 }
 
@@ -56,13 +67,36 @@ install_dependencies() {
     
     if [[ $SYSTEM == "centos" ]]; then
         yum update -y
-        yum install -y wget curl unzip tar
+        yum install -y wget curl unzip tar gzip
     else
         apt update -y
-        apt install -y wget curl unzip tar
+        apt install -y wget curl unzip tar gzip
     fi
     
     echo -e "${GREEN}依赖包安装完成${PLAIN}"
+}
+
+# 下载文件
+download_file() {
+    local url=$1
+    local output=$2
+    local max_retries=3
+    local retry_count=1
+    
+    while [[ $retry_count -le $max_retries ]]; do
+        echo -e "${GREEN}尝试下载 (第 $retry_count 次)...${PLAIN}"
+        wget -N --no-check-certificate -O "$output" "$url"
+        
+        if [[ $? -eq 0 ]]; then
+            return 0
+        fi
+        
+        echo -e "${YELLOW}下载失败，等待 5 秒后重试...${PLAIN}"
+        sleep 5
+        retry_count=$((retry_count + 1))
+    done
+    
+    return 1
 }
 
 # 安装 xui
@@ -75,18 +109,14 @@ install_x_ui() {
     echo -e "${GREEN}下载 xui ${LATEST_VERSION} (${ARCH})...${PLAIN}"
     echo -e "${GREEN}下载链接: ${DOWNLOAD_URL}${PLAIN}"
     
-    # 尝试优先下载tar.gz文件（更可靠）
-    wget -N --no-check-certificate -O "/usr/local/xui-linux-${ARCH}.tar.gz" "$DOWNLOAD_URL"
-    
-    # 如果下载失败，尝试下载zip文件作为备选
-    if [[ $? -ne 0 ]]; then
-        DOWNLOAD_URL="${GITHUB_URL}/releases/download/${LATEST_VERSION}/xui-linux-${ARCH}.zip"
+    # 尝试下载tar.gz文件
+    if ! download_file "$DOWNLOAD_URL" "/usr/local/xui-linux-${ARCH}.tar.gz"; then
         echo -e "${YELLOW}tar.gz下载失败，尝试下载zip文件...${PLAIN}"
-        echo -e "${YELLOW}下载链接: ${DOWNLOAD_URL}${PLAIN}"
-        wget -N --no-check-certificate -O "/usr/local/xui-linux-${ARCH}.zip" "$DOWNLOAD_URL"
+        DOWNLOAD_URL="${GITHUB_URL}/releases/download/${LATEST_VERSION}/xui-linux-${ARCH}.zip"
         
-        if [[ $? -ne 0 ]]; then
+        if ! download_file "$DOWNLOAD_URL" "/usr/local/xui-linux-${ARCH}.zip"; then
             echo -e "${RED}下载 xui 失败，请检查你的网络连接${PLAIN}"
+            echo -e "${YELLOW}提示：如果使用代理，请确保代理设置正确${PLAIN}"
             exit 1
         fi
     fi
@@ -110,34 +140,38 @@ install_x_ui() {
         # 清理
         rm -f "/usr/local/xui-linux-${ARCH}.tar.gz"
     else
-        # 解压zip文件
-        # 处理Windows风格的路径分隔符问题
-        unzip -o "/usr/local/xui-linux-${ARCH}.zip" -d /usr/local
+        # 创建临时目录
+        local temp_dir="/tmp/xui-extract-$$"
+        rm -rf "$temp_dir"
+        mkdir -p "$temp_dir"
+        
+        # 解压zip文件到临时目录
+        echo -e "${YELLOW}解压到临时目录...${PLAIN}"
+        unzip -o "/usr/local/xui-linux-${ARCH}.zip" -d "$temp_dir"
+        
         if [[ $? -ne 0 ]]; then
-            echo -e "${YELLOW}警告：解压遇到问题，尝试修复Windows风格路径分隔符...${PLAIN}"
-            # 如果解压失败，使用特殊方式解压以处理Windows风格路径分隔符
-            mkdir -p /tmp/xui-extract
-            unzip -o "/usr/local/xui-linux-${ARCH}.zip" -d /tmp/xui-extract
-            if [[ $? -ne 0 ]]; then
-                echo -e "${RED}解压 xui 失败，请检查磁盘空间和权限${PLAIN}"
-                rm -f "/usr/local/xui-linux-${ARCH}.zip"
-                exit 1
-            fi
-            
-            # 特殊情况：手动复制文件以避免路径分隔符问题
-            mkdir -p /usr/local/xui/bin
-            find /tmp/xui-extract -type f -name "xui" -exec cp {} /usr/local/xui/ \;
-            find /tmp/xui-extract -type f -name "*.sh" -exec cp {} /usr/local/xui/ \;
-            find /tmp/xui-extract -type f -name "xui.service" -exec cp {} /usr/local/xui/ \;
-            find /tmp/xui-extract -type f -name "geoip.dat" -exec cp {} /usr/local/xui/bin/ \;
-            find /tmp/xui-extract -type f -name "geosite.dat" -exec cp {} /usr/local/xui/bin/ \;
-            find /tmp/xui-extract -type f -name "xray-linux-${ARCH}" -exec cp {} /usr/local/xui/bin/ \;
-            
-            # 清理临时目录
-            rm -rf /tmp/xui-extract
+            echo -e "${RED}解压 xui 失败，请检查磁盘空间和权限${PLAIN}"
+            rm -rf "$temp_dir"
+            rm -f "/usr/local/xui-linux-${ARCH}.zip"
+            exit 1
         fi
         
-        # 清理
+        # 创建目标目录结构
+        mkdir -p /usr/local/xui/bin
+        
+        # 复制文件，处理可能的路径分隔符问题
+        echo -e "${YELLOW}复制文件...${PLAIN}"
+        
+        # 使用find命令查找并复制文件，避免路径分隔符问题
+        find "$temp_dir" -type f -name "xui" -exec cp {} /usr/local/xui/ \;
+        find "$temp_dir" -type f -name "*.sh" -exec cp {} /usr/local/xui/ \;
+        find "$temp_dir" -type f -name "xui.service" -exec cp {} /usr/local/xui/ \;
+        find "$temp_dir" -type f -name "geoip.dat" -exec cp {} /usr/local/xui/bin/ \;
+        find "$temp_dir" -type f -name "geosite.dat" -exec cp {} /usr/local/xui/bin/ \;
+        find "$temp_dir" -type f -name "xray-linux-${ARCH}" -exec cp {} /usr/local/xui/bin/ \;
+        
+        # 清理临时目录和zip文件
+        rm -rf "$temp_dir"
         rm -f "/usr/local/xui-linux-${ARCH}.zip"
     fi
     

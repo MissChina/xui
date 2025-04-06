@@ -37,7 +37,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y zip unzip dos2unix
+          sudo apt-get install -y zip unzip dos2unix tar gzip
       
       - name: Build and package
         run: |
@@ -50,7 +50,7 @@ jobs:
           # Verify the packages
           ls -la release/
           
-      - name: Upload amd64 package
+      - name: Upload amd64 tar.gz package
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -70,7 +70,7 @@ jobs:
           asset_name: xui-linux-amd64.zip
           asset_content_type: application/zip
           
-      - name: Upload arm64 package
+      - name: Upload arm64 tar.gz package
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -76,16 +76,23 @@ build() {
     # Create zip package (using Unix-style paths)
     echo -e "${YELLOW}Creating zip package...${NC}"
     if command -v zip &> /dev/null; then
-        # Change to parent directory
-        (
-            cd "$(dirname "$temp_dir")" || exit
-            # Rename directory to xui before zipping
-            mv "$(basename "$temp_dir")" "xui"
-            # Use -r for recursive with forward slashes inside zip
-            zip -r "../$RELEASE_DIR/xui-linux-${arch}.zip" "xui" -x "*.DS_Store" "*.git*"
-            # Move it back to original name
-            mv "xui" "$(basename "$temp_dir")"
-        )
+        # Create a temporary directory for zip creation
+        local zip_temp="zip-temp-$arch"
+        rm -rf "$zip_temp"
+        mkdir -p "$zip_temp"
+        
+        # Copy files to temporary directory
+        cp -r "$temp_dir"/* "$zip_temp/"
+        
+        # Change to temporary directory
+        cd "$zip_temp" || exit
+        
+        # Create zip with forward slashes
+        zip -r "../$RELEASE_DIR/xui-linux-${arch}.zip" . -x "*.DS_Store" "*.git*"
+        
+        # Go back and cleanup
+        cd ..
+        rm -rf "$zip_temp"
     else
         echo -e "${RED}Warning: zip command not found, skipping zip package${NC}"
     fi
@@ -96,6 +103,33 @@ build() {
         unzip -l "$RELEASE_DIR/xui-linux-${arch}.zip" | grep -q "\\"
         if [ $? -eq 0 ]; then
             echo -e "${RED}Warning: Backslashes detected in zip file${NC}"
+            # Try to fix the zip file
+            echo -e "${YELLOW}Attempting to fix zip file...${NC}"
+            local fix_temp="fix-temp-$arch"
+            rm -rf "$fix_temp"
+            mkdir -p "$fix_temp"
+            
+            # Extract with unzip
+            unzip -o "$RELEASE_DIR/xui-linux-${arch}.zip" -d "$fix_temp"
+            
+            # Create new zip with forward slashes
+            cd "$fix_temp" || exit
+            zip -r "../$RELEASE_DIR/xui-linux-${arch}.zip.new" . -x "*.DS_Store" "*.git*"
+            cd ..
+            
+            # Replace old zip with new one
+            mv "$RELEASE_DIR/xui-linux-${arch}.zip.new" "$RELEASE_DIR/xui-linux-${arch}.zip"
+            
+            # Cleanup
+            rm -rf "$fix_temp"
+            
+            # Verify again
+            unzip -l "$RELEASE_DIR/xui-linux-${arch}.zip" | grep -q "\\"
+            if [ $? -eq 0 ]; then
+                echo -e "${RED}Failed to fix zip file${NC}"
+            else
+                echo -e "${GREEN}Successfully fixed zip file${NC}"
+            fi
         else
             echo -e "${GREEN}Zip file looks good - no backslashes detected${NC}"
         fi
