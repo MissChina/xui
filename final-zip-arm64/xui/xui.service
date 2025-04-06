@@ -1,0 +1,14 @@
+[Unit]
+Description=XUI Service
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/usr/local/xui/
+ExecStart=/usr/local/xui/xui
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target
