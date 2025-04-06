@@ -1,76 +1,101 @@
 #!/bin/bash
 
-# 颜色定义
+# Color definitions
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# 检查是否为root用户
-if [ "$(id -u)" != "0" ]; then
-    echo -e "${RED}错误：请使用root用户运行此脚本${NC}"
-    exit 1
-fi
+# Version setting
+VERSION="1.0.0"
+echo -e "${BLUE}Starting to build xui v${VERSION}${NC}"
 
-# 创建临时目录
-TEMP_DIR=$(mktemp -d)
+# Create release directory
 RELEASE_DIR="release"
-
-# 清理函数
-cleanup() {
-    echo -e "${YELLOW}清理临时文件...${NC}"
-    rm -rf "$TEMP_DIR"
-    rm -rf "$RELEASE_DIR"
-}
-
-# 确保清理在脚本退出时执行
-trap cleanup EXIT
-
-# 创建发布目录
 mkdir -p "$RELEASE_DIR"
+echo -e "${GREEN}Created release directory: $RELEASE_DIR${NC}"
 
-# 支持的架构列表
+# Supported architectures
 ARCHS=("amd64" "arm64")
 
-# 编译函数
+# Build function
 build() {
     local arch=$1
-    echo -e "${BLUE}开始编译 ${arch} 版本...${NC}"
+    echo -e "${BLUE}Building ${arch} version...${NC}"
     
-    # 设置环境变量
+    # Create temporary build directory
+    local temp_dir="temp-$arch"
+    mkdir -p "$temp_dir/bin"
+    
+    # Set environment variables for Go
     export GOOS=linux
     export GOARCH=$arch
     
-    # 编译
-    go build -o "$TEMP_DIR/x-ui" main.go
+    # Build main program
+    echo -e "${YELLOW}Compiling main program...${NC}"
+    go build -o "$temp_dir/xui" main.go
     
-    # 复制必要文件
-    cp -r bin "$TEMP_DIR/"
-    cp install.sh "$TEMP_DIR/"
-    cp x-ui.service "$TEMP_DIR/"
-    cp x-ui.sh "$TEMP_DIR/"
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Build failed!${NC}"
+        exit 1
+    fi
     
-    # 创建压缩包
-    cd "$TEMP_DIR"
-    tar czf "../$RELEASE_DIR/x-ui-linux-${arch}.tar.gz" *
-    cd - > /dev/null
+    # Copy files - using forward slashes for paths
+    echo -e "${YELLOW}Copying files...${NC}"
     
-    echo -e "${GREEN}${arch} 版本编译完成${NC}"
+    # Copy Xray binaries
+    if [ -f "bin/xray-linux-${arch}" ]; then
+        cp "bin/xray-linux-${arch}" "$temp_dir/bin/"
+    else
+        echo -e "${RED}Warning: bin/xray-linux-${arch} not found${NC}"
+    fi
+    
+    # Copy GeoIP data
+    cp -f "bin/geoip.dat" "$temp_dir/bin/" 2>/dev/null || echo -e "${RED}Warning: bin/geoip.dat not found${NC}"
+    cp -f "bin/geosite.dat" "$temp_dir/bin/" 2>/dev/null || echo -e "${RED}Warning: bin/geosite.dat not found${NC}"
+    
+    # Copy scripts and configuration files
+    cp -f "install.sh" "$temp_dir/" 2>/dev/null || echo -e "${RED}Warning: install.sh not found${NC}"
+    cp -f "xui.service" "$temp_dir/" 2>/dev/null || echo -e "${RED}Warning: xui.service not found${NC}"
+    cp -f "xui.sh" "$temp_dir/" 2>/dev/null || echo -e "${RED}Warning: xui.sh not found${NC}"
+    
+    # Fix permissions
+    chmod +x "$temp_dir/xui"
+    chmod +x "$temp_dir/"*.sh 2>/dev/null
+    chmod +x "$temp_dir/bin/"* 2>/dev/null
+    
+    # Create tar.gz package (using Unix-style paths)
+    echo -e "${YELLOW}Creating tar.gz package...${NC}"
+    tar -czf "$RELEASE_DIR/xui-linux-${arch}.tar.gz" -C "$(dirname "$temp_dir")" "$(basename "$temp_dir")"
+    
+    # Create zip package (using Unix-style paths)
+    echo -e "${YELLOW}Creating zip package...${NC}"
+    if command -v zip &> /dev/null; then
+        (cd "$(dirname "$temp_dir")" && zip -r "../$RELEASE_DIR/xui-linux-${arch}.zip" "$(basename "$temp_dir")")
+    else
+        echo -e "${RED}Warning: zip command not found, skipping zip package${NC}"
+    fi
+    
+    # Cleanup
+    rm -rf "$temp_dir"
+    
+    echo -e "${GREEN}${arch} version packaging completed${NC}"
 }
 
-# 检查 Go 环境
+# Check Go environment
 if ! command -v go &> /dev/null; then
-    echo -e "${RED}错误：未找到 Go 环境，请先安装 Go${NC}"
+    echo -e "${RED}Error: Go environment not found. Please install Go first.${NC}"
     exit 1
 fi
 
-# 主循环
+# Main loop - build each architecture
 for arch in "${ARCHS[@]}"; do
     build "$arch"
 done
 
-echo -e "${GREEN}所有版本编译完成！${NC}"
-echo -e "${BLUE}发布文件位于 $RELEASE_DIR 目录${NC}"
-echo -e "${YELLOW}请将以下文件上传到 GitHub Releases：${NC}"
-ls -lh "$RELEASE_DIR"/ 
+# Display release information
+echo -e "${GREEN}All versions built successfully!${NC}"
+echo -e "${BLUE}Release files are in the $RELEASE_DIR directory${NC}"
+echo -e "${YELLOW}Generated files:${NC}"
+ls -lh "$RELEASE_DIR" 
