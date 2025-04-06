@@ -44,15 +44,18 @@ install_xui() {
     
     # 下载安装包
     echo -e "${YELLOW}正在下载安装包...${NC}"
-    wget -O /tmp/x-ui.tar.gz $DOWNLOAD_URL
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}下载失败，请检查网络连接${NC}"
+    if ! wget -O /tmp/x-ui.tar.gz $DOWNLOAD_URL; then
+        echo -e "${RED}下载失败，请检查网络连接或访问 GitHub Releases 页面手动下载${NC}"
+        echo -e "${YELLOW}下载地址：${DOWNLOAD_URL}${NC}"
         exit 1
     fi
     
     # 解压安装包
     echo -e "${YELLOW}正在解压安装包...${NC}"
-    tar zxvf /tmp/x-ui.tar.gz -C $INSTALL_DIR
+    if ! tar zxvf /tmp/x-ui.tar.gz -C $INSTALL_DIR; then
+        echo -e "${RED}解压失败，请检查下载的安装包是否完整${NC}"
+        exit 1
+    fi
     
     # 设置执行权限
     chmod +x $INSTALL_DIR/x-ui
@@ -60,7 +63,7 @@ install_xui() {
     chmod +x $INSTALL_DIR/x-ui.sh
     
     # 创建软链接
-    ln -s $INSTALL_DIR/x-ui.sh $BIN_DIR/x-ui
+    ln -sf $INSTALL_DIR/x-ui.sh $BIN_DIR/x-ui
     
     # 安装系统服务
     cp $INSTALL_DIR/x-ui.service /etc/systemd/system/
