@@ -2,11 +2,9 @@ package config
 
 import (
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
