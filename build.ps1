@@ -22,88 +22,29 @@ Write-Host "Creating release directory: $ReleaseDir" -ForegroundColor $SuccessCo
 # 支持的架构
 $Architectures = @("amd64", "arm64")
 
-# 显示文件编码信息
-function Show-FileEncoding($file) {
+# 处理文本文件并确保正确的编码和行结束符
+function Process-TextFile($source, $destination) {
     try {
-        $bytes = [System.IO.File]::ReadAllBytes($file)
-        $encoding = "Unknown"
+        # 读取文件内容 - 直接用System.IO读取字节
+        $content = Get-Content -Path $source -Raw -Encoding UTF8
         
-        # 检测UTF-8 BOM
-        if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) {
-            $encoding = "UTF-8 with BOM"
-        } 
-        # 检测UTF-16 LE BOM
-        elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) {
-            $encoding = "UTF-16 LE with BOM"
-        }
-        # 检测UTF-16 BE BOM
-        elseif ($bytes.Length -ge 2 -and $bytes[0] -eq 0xFE -and $bytes[1] -eq 0xFF) {
-            $encoding = "UTF-16 BE with BOM"
-        }
-        # 尝试检测UTF-8无BOM
-        elseif ((Test-Utf8NoBom -Bytes $bytes)) {
-            $encoding = "UTF-8 without BOM"
-        }
-        # 其他编码
-        else {
-            $encoding = "Possibly ANSI or other encoding"
-        }
+        # 替换Windows的CRLF为Unix的LF
+        $content = $content.Replace("`r`n", "`n")
         
-        Write-Host "  File $file encoding: $encoding"
-        return $encoding
-    } catch {
-        Write-Host "  Error detecting encoding for $file" -ForegroundColor $ErrorColor
-        return "Unknown"
+        # 使用UTF-8编码(不带BOM)写入目标文件
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($destination, $content, $utf8NoBom)
+        
+        # 输出信息
+        Write-Host "  Processed file $source to $destination with UTF-8 encoding (no BOM) and Unix line endings"
+    }
+    catch {
+        Write-Host "  Error processing file $source" -ForegroundColor $ErrorColor
     }
 }
 
-# 测试UTF-8无BOM编码
-function Test-Utf8NoBom($Bytes) {
-    # 简单的UTF-8序列检测
-    $isPossiblyUtf8 = $true
-    $i = 0
-    while ($i -lt $Bytes.Length) {
-        # 单字节ASCII字符
-        if ($Bytes[$i] -lt 0x80) {
-            $i++
-            continue
-        }
-        # 检测2字节序列
-        elseif (($Bytes[$i] -ge 0xC2) -and ($Bytes[$i] -le 0xDF)) {
-            if (($i + 1 -lt $Bytes.Length) -and (($Bytes[$i+1] -ge 0x80) -and ($Bytes[$i+1] -le 0xBF))) {
-                $i += 2
-                continue
-            }
-        }
-        # 检测3字节序列
-        elseif (($Bytes[$i] -ge 0xE0) -and ($Bytes[$i] -le 0xEF)) {
-            if (($i + 2 -lt $Bytes.Length) -and 
-                (($Bytes[$i+1] -ge 0x80) -and ($Bytes[$i+1] -le 0xBF)) -and
-                (($Bytes[$i+2] -ge 0x80) -and ($Bytes[$i+2] -le 0xBF))) {
-                $i += 3
-                continue
-            }
-        }
-        # 检测4字节序列
-        elseif (($Bytes[$i] -ge 0xF0) -and ($Bytes[$i] -le 0xF7)) {
-            if (($i + 3 -lt $Bytes.Length) -and 
-                (($Bytes[$i+1] -ge 0x80) -and ($Bytes[$i+1] -le 0xBF)) -and
-                (($Bytes[$i+2] -ge 0x80) -and ($Bytes[$i+2] -le 0xBF)) -and
-                (($Bytes[$i+3] -ge 0x80) -and ($Bytes[$i+3] -le 0xBF))) {
-                $i += 4
-                continue
-            }
-        }
-        
-        $isPossiblyUtf8 = $false
-        break
-    }
-    
-    return $isPossiblyUtf8
-}
-
-# 复制文件函数
-function CopyWithEncoding($source, $destination) {
+# 复制文件函数 - 对于文本文件进行编码处理
+function Copy-File-With-Encoding($source, $destination) {
     if (Test-Path $source) {
         # 创建目标目录（如果不存在）
         $destDir = Split-Path -Parent $destination
@@ -111,47 +52,21 @@ function CopyWithEncoding($source, $destination) {
             New-Item -ItemType Directory -Path $destDir -Force | Out-Null
         }
         
-        try {
-            # 检查文件类型
-            $extension = [System.IO.Path]::GetExtension($source)
-            
-            # 文本文件需要编码转换
-            if ($extension -in ".sh", ".service", ".txt", ".md") {
-                # 检查源文件编码
-                $encoding = Show-FileEncoding -file $source
-                
-                # 读取文件内容
-                $bytes = [System.IO.File]::ReadAllBytes($source)
-                $content = ""
-                
-                # 根据检测到的编码进行处理
-                if ($encoding -eq "UTF-8 with BOM") {
-                    $content = [System.Text.Encoding]::UTF8.GetString($bytes, 3, $bytes.Length - 3)
-                } elseif ($encoding -eq "UTF-16 LE with BOM") {
-                    $content = [System.Text.Encoding]::Unicode.GetString($bytes, 2, $bytes.Length - 2)
-                } elseif ($encoding -eq "UTF-16 BE with BOM") {
-                    $content = [System.Text.Encoding]::BigEndianUnicode.GetString($bytes, 2, $bytes.Length - 2)
-                } else {
-                    # 尝试以UTF-8读取
-                    $content = [System.Text.Encoding]::UTF8.GetString($bytes)
-                }
-                
-                # 保存为UTF-8无BOM格式
-                [System.IO.File]::WriteAllText($destination, $content, [System.Text.UTF8Encoding]::new($false))
-                
-                # 验证目标文件
-                Write-Host "  Copied $source to $destination with UTF-8 encoding"
-                Show-FileEncoding -file $destination
-            } else {
-                # 二进制文件直接复制
-                Copy-Item -Path $source -Destination $destination -Force
-                Write-Host "  Copied binary file $source to $destination"
-            }
-        } catch {
-            Write-Host "  Error copying $source" -ForegroundColor $ErrorColor
+        # 检查文件类型
+        $extension = [System.IO.Path]::GetExtension($source)
+        
+        # 对于文本文件进行处理
+        if ($extension -in ".sh", ".service") {
+            Process-TextFile -source $source -destination $destination
         }
-    } else {
-        Write-Host "Warning: $source not found" -ForegroundColor $WarningColor
+        else {
+            # 二进制文件直接复制
+            Copy-Item -Path $source -Destination $destination -Force
+            Write-Host "  Copied binary file $source to $destination"
+        }
+    }
+    else {
+        Write-Host "  Warning: $source not found" -ForegroundColor $WarningColor
     }
 }
 
@@ -178,39 +93,6 @@ function Create-Package-Structure($targetDir, $sourceDir) {
     }
 }
 
-# 将文件转换为Unix格式
-function ConvertToUnix($file) {
-    if (Test-Path $file) {
-        try {
-            # 读取文件内容
-            $bytes = [System.IO.File]::ReadAllBytes($file)
-            $encoding = Show-FileEncoding -file $file
-            $content = ""
-            
-            # 根据检测到的编码进行处理
-            if ($encoding -eq "UTF-8 with BOM") {
-                $content = [System.Text.Encoding]::UTF8.GetString($bytes, 3, $bytes.Length - 3)
-            } elseif ($encoding -eq "UTF-16 LE with BOM") {
-                $content = [System.Text.Encoding]::Unicode.GetString($bytes, 2, $bytes.Length - 2)
-            } elseif ($encoding -eq "UTF-16 BE with BOM") {
-                $content = [System.Text.Encoding]::BigEndianUnicode.GetString($bytes, 2, $bytes.Length - 2)
-            } else {
-                # 尝试以UTF-8读取
-                $content = [System.Text.Encoding]::UTF8.GetString($bytes)
-            }
-            
-            # 替换Windows的CRLF为Unix的LF
-            $content = $content -replace "`r`n", "`n"
-            
-            # 使用UTF-8编码(不带BOM)保存文件
-            [System.IO.File]::WriteAllText($file, $content, [System.Text.UTF8Encoding]::new($false))
-            Write-Host "  Converted $file to Unix format with UTF-8 encoding"
-        } catch {
-            Write-Host "  Error converting $file" -ForegroundColor $ErrorColor
-        }
-    }
-}
-
 # 构建函数
 function Build($arch) {
     # 创建临时目录
@@ -233,7 +115,7 @@ function Build($arch) {
     # 复制脚本和配置文件到临时目录的xui子目录下
     foreach ($file in @("install.sh", "xui.sh", "xui.service")) {
         if (Test-Path $file) {
-            CopyWithEncoding -source $file -destination "$TempDir/xui/$file"
+            Copy-File-With-Encoding -source $file -destination "$TempDir/xui/$file"
             Write-Host "  Copied $file to $TempDir/xui/"
         } else {
             Write-Host "Warning: $file not found" -ForegroundColor $WarningColor
@@ -256,11 +138,6 @@ function Build($arch) {
         } else {
             Write-Host "Warning: $GeoFilePath not found" -ForegroundColor $WarningColor
         }
-    }
-    
-    # 确保所有文本文件使用 Unix 风格的行结束符和UTF-8编码
-    Get-ChildItem -Path "$TempDir/xui" -Recurse -Include "*.sh", "*.service" | ForEach-Object {
-        ConvertToUnix -file $_.FullName
     }
     
     # 创建打包文件
