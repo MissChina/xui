@@ -6,6 +6,9 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 PLAIN='\033[0m'
 
+# 默认版本号，当无法从网络获取时使用
+DEFAULT_VERSION="v1.0.0"
+
 # 检查是否为 root 用户
 check_root() {
     if [[ $EUID -ne 0 ]]; then
@@ -44,22 +47,22 @@ get_latest_version() {
     GITHUB_URL="https://github.com/MissChina/xui"
     echo -e "${GREEN}正在获取最新版本信息...${PLAIN}"
     
-    # 尝试使用 GitHub API 获取最新版本
-    LATEST_VERSION=$(curl -s https://api.github.com/repos/MissChina/xui/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    # 首先尝试使用 GitHub API 获取最新版本
+    LATEST_VERSION=$(curl -s --connect-timeout 10 -m 15 https://api.github.com/repos/MissChina/xui/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     
+    # 如果API获取失败，尝试从网页获取
     if [[ ! -n "$LATEST_VERSION" ]]; then
         echo -e "${YELLOW}GitHub API 获取失败，尝试从网页获取...${PLAIN}"
-        # 如果 API 获取失败，尝试从网页获取
-        LATEST_VERSION=$(curl -s https://github.com/MissChina/xui/releases/latest | grep -o 'tag/[^"]*' | cut -d'/' -f2)
+        LATEST_VERSION=$(curl -s --connect-timeout 10 -m 15 https://github.com/MissChina/xui/releases/latest | grep -o 'tag/[^"]*' | cut -d'/' -f2)
     fi
     
+    # 如果仍然失败，使用默认版本
     if [[ ! -n "$LATEST_VERSION" ]]; then
-        echo -e "${RED}获取最新版本失败，请检查你的网络连接${PLAIN}"
-        echo -e "${YELLOW}提示：如果使用代理，请确保代理设置正确${PLAIN}"
-        exit 1
+        echo -e "${YELLOW}版本信息获取失败，使用默认版本: ${DEFAULT_VERSION}${PLAIN}"
+        LATEST_VERSION=$DEFAULT_VERSION
+    else
+        echo -e "${GREEN}检测到最新版本：${LATEST_VERSION}${PLAIN}"
     fi
-    
-    echo -e "${GREEN}检测到最新版本：${LATEST_VERSION}${PLAIN}"
 }
 
 # 安装依赖
@@ -86,7 +89,7 @@ download_file() {
     
     while [[ $retry_count -le $max_retries ]]; do
         echo -e "${GREEN}尝试下载 (第 $retry_count 次)...${PLAIN}"
-        wget -N --no-check-certificate -O "$output" "$url"
+        wget --no-check-certificate --timeout=15 --tries=3 -O "$output" "$url"
         
         if [[ $? -eq 0 ]]; then
             return 0
@@ -192,7 +195,17 @@ install_x_ui() {
     
     echo -e "${GREEN}xui ${LATEST_VERSION} 安装成功！${PLAIN}"
     echo -e ""
-    echo -e "面板访问地址: ${GREEN}http://服务器IP:54321${PLAIN}"
+    
+    # 获取真实IP用于面板访问
+    IP=$(curl -s4 ifconfig.me || curl -s6 ifconfig.me)
+    if [[ -z "$IP" ]]; then
+        IP=$(ip -4 addr | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v "127.0.0.1" | head -n 1)
+    fi
+    if [[ -z "$IP" ]]; then
+        IP=$(hostname -I | awk '{print $1}')
+    fi
+    
+    echo -e "面板访问地址: ${GREEN}http://${IP}:54321${PLAIN}"
     echo -e "用户名: ${GREEN}admin${PLAIN}"
     echo -e "密码: ${GREEN}admin${PLAIN}"
     echo -e ""
