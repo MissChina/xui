@@ -25,10 +25,11 @@ check_root() {
 
 # 检查xui状态
 check_status() {
-    if systemctl is-active --quiet xui; then
-        echo -e "xui状态: ${GREEN}运行中${PLAIN}"
+    status=$(systemctl status xui | grep Active | awk '{print $3}' | cut -d "(" -f2 | cut -d ")" -f1)
+    if [[ "$status" == "running" ]]; then
+        echo -e "xui 状态: ${GREEN}运行中${PLAIN}"
     else
-        echo -e "xui状态: ${RED}未运行${PLAIN}"
+        echo -e "xui 状态: ${RED}未运行${PLAIN}"
     fi
     
     echo -e "xui版本: ${GREEN}v${VERSION}${PLAIN}"
@@ -58,36 +59,30 @@ check_status() {
 # 启动xui
 start_xui() {
     systemctl start xui
-    sleep 2
-    
-    if systemctl is-active --quiet xui; then
-        echo -e "${GREEN}xui 启动成功！${PLAIN}"
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}xui 启动成功${PLAIN}"
     else
-        echo -e "${RED}xui 启动失败，请检查日志信息！${PLAIN}"
+        echo -e "${RED}xui 启动失败，请检查日志${PLAIN}"
     fi
 }
 
 # 停止xui
 stop_xui() {
     systemctl stop xui
-    sleep 2
-    
-    if ! systemctl is-active --quiet xui; then
-        echo -e "${GREEN}xui 已停止！${PLAIN}"
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}xui 停止成功${PLAIN}"
     else
-        echo -e "${RED}xui 停止失败，请检查日志信息！${PLAIN}"
+        echo -e "${RED}xui 停止失败${PLAIN}"
     fi
 }
 
 # 重启xui
 restart_xui() {
     systemctl restart xui
-    sleep 2
-    
-    if systemctl is-active --quiet xui; then
-        echo -e "${GREEN}xui 重启成功！${PLAIN}"
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}xui 重启成功${PLAIN}"
     else
-        echo -e "${RED}xui 重启失败，请检查日志信息！${PLAIN}"
+        echo -e "${RED}xui 重启失败${PLAIN}"
     fi
 }
 
@@ -244,10 +239,10 @@ show_help() {
 show_menu() {
     clear
     echo -e "${GREEN}xui 管理脚本 ${VERSION}${PLAIN}"
-    echo -e "  ${GREEN}1.${PLAIN} 启动 xui"
-    echo -e "  ${GREEN}2.${PLAIN} 停止 xui"
-    echo -e "  ${GREEN}3.${PLAIN} 重启 xui"
-    echo -e "  ${GREEN}4.${PLAIN} 查看 xui 状态"
+    echo -e "  ${GREEN}1.${PLAIN} 查看状态"
+    echo -e "  ${GREEN}2.${PLAIN} 启动服务"
+    echo -e "  ${GREEN}3.${PLAIN} 停止服务"
+    echo -e "  ${GREEN}4.${PLAIN} 重启服务"
     echo -e "  ${GREEN}5.${PLAIN} 设置 xui 开机自启"
     echo -e "  ${GREEN}6.${PLAIN} 取消 xui 开机自启"
     echo -e "  ${GREEN}7.${PLAIN} 查看 xui 日志"
@@ -262,10 +257,10 @@ show_menu() {
     read -p "请输入选项 [0-10]: " -e CHOICE
     
     case $CHOICE in
-        1) start_xui ;;
-        2) stop_xui ;;
-        3) restart_xui ;;
-        4) view_status ;;
+        1) check_status ;;
+        2) start_xui ;;
+        3) stop_xui ;;
+        4) restart_xui ;;
         5) enable_xui ;;
         6) disable_xui ;;
         7) view_log ;;
@@ -281,20 +276,24 @@ show_menu() {
 main() {
     check_root
     
-    case "$1" in
-        start) start_xui ;;
-        stop) stop_xui ;;
-        restart) restart_xui ;;
-        status) check_status ;;
-        enable) enable_xui ;;
-        disable) disable_xui ;;
-        log) view_log ;;
-        update) check_update ;;
-        backup) backup_xui ;;
-        restore) restore_xui ;;
-        help) show_help ;;
-        *) show_menu ;;
-    esac
+    if [[ $# -gt 0 ]]; then
+        case $1 in
+            status) check_status ;;
+            start) start_xui ;;
+            stop) stop_xui ;;
+            restart) restart_xui ;;
+            enable) enable_xui ;;
+            disable) disable_xui ;;
+            log) view_log ;;
+            update) check_update ;;
+            backup) backup_xui ;;
+            restore) restore_xui ;;
+            help) show_help ;;
+            *) show_menu ;;
+        esac
+    else
+        show_menu
+    fi
 }
 
 # 执行主函数
